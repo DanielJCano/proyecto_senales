@@ -9,15 +9,25 @@ import queue
 
 
 
-# Create a tkinter window
-root = tk.Tk()
-root.title("Filtro Pasa Bandas y Filtro Notch")
 
 # ==================> PARAMETERS <==================
 
+BABY_POWDER = '#F7F9F7'
+VISTA_BLUE = '#8093F1'
+CORAL_PINK = '#FE938C'
+
+# ==================> Create a tkinter window <==================
+
+root = tk.Tk()
+root.title("Filtro Pasa Bandas y Filtro Notch")
+root.geometry("800x500")
+# add background color
+root.configure(bg=BABY_POWDER)
+
+
 # Set some parameters
 fs = 44100  # Sampling rate
-chunk_size = 4056  # Number of audio frames processed per chunk
+chunk_size = 5112  # Number of audio frames processed per chunk
 channels = 2  # Mono audio
 format = pyaudio.paFloat32  # 32-bit float audio data
 # cutoff_frequency = 500  # Cutoff frequency in Hz
@@ -25,14 +35,18 @@ format = pyaudio.paFloat32  # 32-bit float audio data
 # notch_quality_factor = 17  # Quality factor of the notch filter
 
 lock = threading.Lock()
-
 # Variables to hold the filter settings
-
 cutoff_frequency = tk.DoubleVar(root, value=120)
 notch_center_frequency = tk.DoubleVar(root, value=6000)
 notch_quality_factor = tk.DoubleVar(root, value=17)
 amplitude = tk.DoubleVar(root, value=0.4)
+notch_filter_radio = tk.BooleanVar(root, value=True)
 
+
+
+
+
+# ==================> FUNCTIONS <==================
 
 def a1_coefficient(break_frequency, sampling_rate):
     tan = np.tan(np.pi * break_frequency / sampling_rate)
@@ -137,7 +151,10 @@ def audio_processing_thread():
             amp = amplitude.get()
 
         # Apply the notch filter
-        filtered_data = notch_filter(input_data, notch_center_freq, notch_quality, fs)
+
+        # filtered_data = notch_filter(input_data, notch_center_freq, notch_quality, fs)
+
+        filtered_data = input_data
 
         # Apply the allpass-based filter
         output_data = allpass_based_filter(
@@ -149,8 +166,9 @@ def audio_processing_thread():
         # Indicate that the task is done
         audio_queue.task_done()
 
-
-
+# Create a stream and audio_thread as global variables
+stream = None
+audio_thread = None
 
 # Callback function to process audio chunks
 def callback(in_data, frame_count, time_info, status):
@@ -183,6 +201,16 @@ input_buffer = np.zeros(chunk_size)
 
 # Function to start the stream
 def start_stream():
+    # Create a stream and start it
+    stream = p.open(
+        format=format,
+        channels=channels,
+        rate=fs,
+        input=True,
+        output=True,
+        frames_per_buffer=chunk_size,
+        stream_callback=callback
+    )
     stream.start_stream()
     # Create and start the audio processing thread
     audio_thread = threading.Thread(target=audio_processing_thread)
@@ -190,12 +218,10 @@ def start_stream():
 
 # Function to stop the stream
 def stop_stream():
-    global stream
-    
     # stop the tkinter loop
     root.quit()
     # Stop the audio stream and terminate PyAudio
-    stream.stop_stream()
+    # stream.stop_stream()
     stream.close()
     p.terminate()
     # At the end of your program, you'll need to stop the thread
@@ -207,59 +233,51 @@ def stop_stream():
     exit()
 
 
-# Create a button to start the stream
-start_button = tk.Button(root, text='Start', command=start_stream)
-start_button.pack()
-
-# Create a button to stop the stream
-stop_button = tk.Button(root, text='Stop', command=stop_stream)
-stop_button.pack()
-
-# Create a slider to change the cutoff frequency
-cutoff_slider = tk.Scale(root, from_=10, to=1200, variable=cutoff_frequency, label='Cutoff Frequency', orient='horizontal', resolution=10)
-cutoff_slider.pack()
-
 # Create a slider to change the notch center frequency
-notch_freq_slider = tk.Scale(root, from_=1000, to=20000, variable=notch_center_frequency, label='Notch Center Frequency', orient='horizontal')
-notch_freq_slider.pack()
+notch_freq_slider = tk.Scale(root, from_=1000, to=20000, variable=notch_center_frequency, label='Notch Center Frequency', orient='horizontal', length=150, bg=VISTA_BLUE)
+notch_freq_slider.place(x=450, y=100)
 
 # Create a slider to change the notch quality factor
-quality_factor_slider = tk.Scale(root, from_=1, to=30, variable=notch_quality_factor, label='Notch Quality Factor', orient='horizontal')
-quality_factor_slider.pack()
+quality_factor_slider = tk.Scale(root, from_=1, to=30, variable=notch_quality_factor, label='Notch Quality Factor', orient='horizontal', length=150, bg=VISTA_BLUE)
+quality_factor_slider.place(x=450, y=20)
+
 
 # Create a slider to change the amplitude
-amplitude_slider = tk.Scale(root, from_=0.1, to=1, resolution=0.1, variable=amplitude, label='Amplitude', orient='horizontal')
-amplitude_slider.pack()
+amplitude_slider = tk.Scale(root, from_=0.1, to=1, resolution=0.1, variable=amplitude, label='Amplitude', orient='horizontal', length=150, bg=VISTA_BLUE)
+amplitude_slider.place(x=250, y=100)
 
-# ... (rest of your code)
+
+# Create a slider to change the cutoff frequency
+cutoff_slider = tk.Scale(root, from_=10, to=1200, variable=cutoff_frequency, label='Cutoff Frequency', orient='horizontal', resolution=10, length=150, bg=VISTA_BLUE)
+cutoff_slider.place(x=250, y=20)
+
+
+# Create a button to start the stream
+start_button = tk.Button(root, text='Start', command=start_stream, bg=VISTA_BLUE)
+start_button.place(x=350, y=230)
+
+# Create a button to stop the stream
+stop_button = tk.Button(root, text='Stop', command=stop_stream, bg=CORAL_PINK)
+stop_button.place(x=450, y=230)
+
+# add raido buttons that changes if it uses the notch filter or not
+notch_filter_button = tk.Checkbutton(root, text='Notch Filter', variable=notch_filter_radio, bg=BABY_POWDER)
+notch_filter_button.place(x=50, y=20)
 
 
 # Create a Figure and a subplot for the plot
-fig = Figure(figsize=(8, 4), dpi=100)
+fig = Figure(figsize=(8, 2), dpi=100, facecolor=BABY_POWDER)
 subplot = fig.add_subplot(1, 1, 1)
 
 # Create a canvas for the Figure
 canvas = FigureCanvasTkAgg(fig, master=root)
-canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+canvas.get_tk_widget().place(x=0, y=280)
 canvas.draw()
 
 
-
-# Create a stream and start it
-stream = p.open(
-    format=format,
-    channels=channels,
-    rate=fs,
-    input=True,
-    output=True,
-    frames_per_buffer=chunk_size,
-    stream_callback=callback
-)
-
-
-
-# Start the tkinter event loop
-root.mainloop()
+if __name__ == '__main__':
+    # Start the tkinter event loop
+    root.mainloop()
 
 
 
